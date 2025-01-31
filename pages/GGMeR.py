@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 
+st.title("Gordon Growth Model Estimated Return")
 
 def cagr(start_value, end_value, num_years):
     """Calculate the Compound Annual Growth Rate (CAGR)."""
