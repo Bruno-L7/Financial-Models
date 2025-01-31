@@ -4,8 +4,6 @@ st.title("Financial Models")
 
 import streamlit as st
 
-st.sidebar.title("Linkedin")
-
 # Function to create footer
 def footer():
     st.markdown(
