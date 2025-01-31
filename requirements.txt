@@ -4,4 +4,4 @@ seaborn
 matplotlib
 scipy
 yfinance
-pandas==1.3.3
+pandas
