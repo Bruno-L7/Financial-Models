@@ -28,7 +28,7 @@ if st.button("Calculate"):
             st.write(data[ticker])  # Show the DataFrame
             
             # Check if 'Adj Close' column exists
-            if 'Adj Close' not in data[ticker].columns:
+            if 'AdjClose' not in data[ticker].columns:
                 st.error(f"'Adj Close' column not found for {ticker}.")
                 break
             
@@ -41,7 +41,7 @@ if st.button("Calculate"):
         # Calculate log returns
         log_returns = {}
         for ticker in [stock_ticker, index_ticker]:
-            log_returns[ticker] = np.log(1 + data[ticker]['Adj Close'].pct_change())
+            log_returns[ticker] = np.log(1 + data[ticker]['AdjClose'].pct_change())
 
         # Calculate covariance matrix
         cov = pd.concat(log_returns, axis=1).cov() * 252
