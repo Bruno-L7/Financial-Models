@@ -29,7 +29,7 @@ if st.button("Calculate"):
             
             # Check if 'Adj Close' column exists
             if 'AdjClose' not in data[ticker].columns:
-                st.error(f"'Adj Close' column not found for {ticker}.")
+                st.error(f"'AdjClose' column not found for {ticker}.")
                 break
             
         except Exception as e:
