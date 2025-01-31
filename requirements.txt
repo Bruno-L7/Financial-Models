@@ -6,3 +6,4 @@ scipy
 yahoo_fin
 pandas
 plotly
+statsmodels
