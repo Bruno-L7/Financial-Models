@@ -22,7 +22,7 @@ use_robust_errors = st.sidebar.checkbox("Use Robust Standard Errors (HC3)", valu
 @st.cache_data  # Cache data to improve performance
 def fetch_fama_french(start_date, end_date):
     try:
-        ff_data = web.DataReader('F-F_Research_Data_Factors', 'famafrench', start_date, end_date)
+        ff_data = web.DataReader('F-F_Research_Data_Factors', 'famafrench', start=start_date, end=end_date)
         ff_factors = ff_data[0]
         ff_factors.index = ff_factors.index.to_timestamp(how='e')  # Convert to month-end dates
         ff_factors.index = ff_factors.index.normalize()  # Remove time component (if any)
