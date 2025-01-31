@@ -8,4 +8,4 @@ pandas
 plotly
 statsmodels
 pandas-datareader
-pandas_datareader
+setuptools
