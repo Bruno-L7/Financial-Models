@@ -15,7 +15,7 @@ def footer():
             position: fixed;
             left: 0;
             bottom: 0;
-            width: 100%;
+            width: 50%;
             text-align: right;
             padding: 10px;
             background-color: #0E1117;
