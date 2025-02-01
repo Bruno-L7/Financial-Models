@@ -9,3 +9,4 @@ plotly
 statsmodels
 pandas-datareader
 setuptools
+arch
