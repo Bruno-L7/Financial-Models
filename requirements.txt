@@ -10,3 +10,7 @@ statsmodels
 pandas-datareader
 setuptools
 arch
+gymnasium
+stable_baselines3
+stable_baselines3.common.callbacks
+plotly.graph_objects
