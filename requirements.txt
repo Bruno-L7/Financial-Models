@@ -13,3 +13,4 @@ arch
 gymnasium
 stable_baselines3
 scikit-learn
+yfinance
