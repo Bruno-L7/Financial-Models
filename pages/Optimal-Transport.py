@@ -4,6 +4,67 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
 
+def analyze_transport_plan(transport_plan, cost_matrix):
+    """Generate textual analysis of the transport plan"""
+    analysis = []
+    num_assets = transport_plan.shape[0]
+    
+    # Find largest single transfer
+    max_transfer = np.max(transport_plan)
+    max_indices = np.where(transport_plan == max_transfer)
+    for i, j in zip(max_indices[0], max_indices[1]):
+        analysis.append(
+            f"Largest transfer: {max_transfer:.2%} from Current Asset {i+1} to Target Asset {j+1}"
+        )
+    
+    # Calculate self-transitions (diagonal elements)
+    self_transfers = np.diag(transport_plan).sum()
+    analysis.append(
+        f"Self-transitions (no change): {self_transfers:.2%} of total portfolio remains unchanged"
+    )
+    
+    # Identify zero transfers
+    zero_transfers = np.sum(transport_plan == 0)
+    if zero_transfers > 0:
+        zero_percent = zero_transfers / (num_assets**2) * 100
+        analysis.append(
+            f"{zero_transfers} zero transfers ({zero_percent:.1f}% of possible transitions)"
+        )
+    else:
+        analysis.append("All possible transitions are being used")
+    
+    # Calculate cost efficiency
+    total_cost = np.sum(transport_plan * cost_matrix)
+    cost_per_transfer = total_cost / (1 - self_transfers) if (1 - self_transfers) > 0 else 0
+    analysis.append(
+        f"Cost efficiency: ${total_cost:.4f} total cost, ${cost_per_transfer:.4f} per unit reallocated"
+    )
+    
+    return analysis
+
+# Function to create a cost matrix
+def create_cost_matrix(num_assets):
+    st.subheader("Cost Matrix")
+    st.write("Define the cost of transitioning between assets.")
+    
+    # Initialize the cost matrix
+    cost_matrix = np.zeros((num_assets, num_assets))
+    
+    # Create a grid of input fields
+    cols = st.columns(num_assets)
+    for i in range(num_assets):
+        with cols[i]:
+            st.write(f"Row {i+1}")
+            for j in range(num_assets):
+                cost_matrix[i, j] = st.number_input(
+                    f"Cost from Asset {i+1} → Asset {j+1}",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.1 if i != j else 0.0,  # Default: No cost for self-transitions
+                    step=0.01
+                )
+    return cost_matrix
+
 # Function to validate and normalize a distribution
 def get_distribution(input_str, num_assets):
     try:
@@ -16,22 +77,7 @@ def get_distribution(input_str, num_assets):
     except ValueError:
         st.error("Invalid input. Please enter numeric values separated by commas.")
         return None
-
-# Function to get the cost matrix from user input
-def get_cost_matrix(input_rows, num_assets):
-    try:
-        cost_matrix = np.zeros((num_assets, num_assets))
-        for i, row_input in enumerate(input_rows):
-            row = np.array([float(x.strip()) for x in row_input.split(",")])
-            if len(row) != num_assets:
-                st.error(f"Row {i+1} must have exactly {num_assets} values.")
-                return None
-            cost_matrix[i] = row
-        return cost_matrix
-    except ValueError:
-        st.error("Invalid input in cost matrix. Please enter numeric values separated by commas.")
-        return None
-
+    
 # Streamlit App
 st.title("Optimal Transport in Quantitative Finance")
 
@@ -52,14 +98,8 @@ target_portfolio_input = st.text_input(
 )
 target_portfolio = get_distribution(target_portfolio_input, num_assets)
 
-# Step 4: Get the cost matrix
-st.subheader("Cost Matrix")
-cost_matrix_inputs = []
-for i in range(num_assets):
-    default_row = ", ".join(["0.1"] * num_assets)  # Default row values
-    row_input = st.text_input(f"Row {i+1} of the cost matrix (comma-separated, {num_assets} values):", value=default_row)
-    cost_matrix_inputs.append(row_input)
-cost_matrix = get_cost_matrix(cost_matrix_inputs, num_assets)
+# Step 4: Get the cost matrix using the new user-friendly function
+cost_matrix = create_cost_matrix(num_assets)
 
 # Step 5: Compute and display the results
 if st.button("Compute Optimal Transport Plan"):
@@ -89,3 +129,25 @@ if st.button("Compute Optimal Transport Plan"):
         ax.set_yticklabels([f"Asset {i+1}" for i in range(num_assets)])
         
         st.pyplot(fig)
+
+        analysis = analyze_transport_plan(optimal_transport_plan, cost_matrix)
+        st.subheader("Plan Analysis")
+        for insight in analysis:
+            st.write(f"- {insight}")
+
+        # Add detailed transfer explanations
+        st.write("\n**Key Transitions:**")
+        threshold = 0.05  # Consider transfers above 5% as significant
+        significant_transfers = np.argwhere(optimal_transport_plan >= threshold)
+        if len(significant_transfers) > 0:
+            for i, j in significant_transfers:
+                if i != j:  # Exclude self-transitions
+                    st.write(
+                        f"- Current Asset {i+1} → Target Asset {j+1}: "
+                        f"{optimal_transport_plan[i,j]:.2%} (Cost: ${cost_matrix[i,j]:.2f} per unit)"
+                    )
+        else:
+            st.write("No significant individual transfers above 5% threshold")
+
+
+
