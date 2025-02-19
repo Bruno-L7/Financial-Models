@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import ot
 import streamlit as st
-import numpy as np
 
 # Generate synthetic return distributions
 np.random.seed(42)
