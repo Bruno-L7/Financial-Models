@@ -17,3 +17,4 @@ yfinance
 PyPortfolioOpt==1.5.1
 cvxpy
 pot
+gudhi
