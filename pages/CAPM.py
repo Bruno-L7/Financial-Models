@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from datetime import datetime, timedelta
 
 st.title("CAPM and Sharpe Ratio Calculator")
 
@@ -10,13 +11,24 @@ index_ticker = st.text_input("Enter index ticker (e.g., ^GSPC for S&P 500)", "^G
 
 if st.button("Calculate"):
     try:
-        # Fetch data
-        stock_data = yf.download(stock_ticker, start="2013-01-01")
-        index_data = yf.download(index_ticker, start="2013-01-01")
-
-        # Validate data
-        if stock_data.empty or index_data.empty:
-            st.error("No data downloaded. Check ticker symbols on Yahoo Finance.")
+        # Use a 5-year period to ensure recent data
+        end_date = datetime.today()
+        start_date = end_date - timedelta(days=5*365)
+        
+        # Fetch data with progress
+        with st.spinner("Downloading stock data..."):
+            stock_data = yf.download(stock_ticker, start=start_date, end=end_date)
+        with st.spinner("Downloading index data..."):
+            index_data = yf.download(index_ticker, start=start_date, end=end_date)
+        
+        # Debug: Show downloaded data info
+        st.write(f"Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
+        
+        if stock_data.empty:
+            st.error(f"No stock data for {stock_ticker}. Check ticker on Yahoo Finance.")
+            st.stop()
+        if index_data.empty:
+            st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
             st.stop()
 
         # Ensure 'Close' columns exist and are Series (not DataFrames)
@@ -58,5 +70,6 @@ if st.button("Calculate"):
         - Sharpe Ratio: {sharpe_ratio:.2f}
         """)
 
-    except KeyError:
-        st.error("'Close' column not found in data. Check Yahoo Finance format.")
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+        st.stop()
