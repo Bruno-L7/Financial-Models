@@ -2,8 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import requests                      
-
+import requests
 from datetime import datetime, timedelta
 
 st.title("CAPM and Sharpe Ratio Calculator")
@@ -16,39 +15,38 @@ if st.button("Calculate"):
         # Use a 5-year period to ensure recent data
         end_date = datetime.today()
         start_date = end_date - timedelta(days=5*365)
-         
-        # ──────── CREATE A SESSION WITH A REAL BROWSER UA ────────
+
+       # ─── create a session that pretends to be a modern browser ───
         session = requests.Session()
         session.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/115.0.0.0 Safari/537.36"
-            )
-        })
+           "User-Agent": (
+               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+               "AppleWebKit/537.36 (KHTML, like Gecko) "
+               "Chrome/115.0.0.0 Safari/537.36"
+           )
+       })
 
-         # Fetch data with progress—pass the custom session and disable threads
+        # Fetch data with progress—disable threading in hosted env
         with st.spinner("Downloading stock data..."):
-            stock_data = yf.download(stock_ticker, start=start_date, end=end_date)
-            stock_data = yf.download(
-                stock_ticker,
-                start=start_date,
-                end=end_date,
-                session=session,
-                threads=False
-            )
+           stock_data = yf.download(
+               stock_ticker,
+               start=start_date,
+               end=end_date,
+               session=session,
+               threads=False
+           )
         with st.spinner("Downloading index data..."):
-            index_data = yf.download(index_ticker, start=start_date, end=end_date)
-            index_data = yf.download(
-                index_ticker,
-                start=start_date,
-                end=end_date,
-                session=session,
-                threads=False
-            )
-         
-         # Debug: Show downloaded data info
+           index_data = yf.download(
+               index_ticker,
+               start=start_date,
+               end=end_date,
+               session=session,
+               threads=False
+           )
+
+        # Debug: Show downloaded data info
         st.write(f"Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
+
          
         if stock_data.empty:
              st.error(f"No stock data for {stock_ticker}. Check ticker on Yahoo Finance.")
@@ -95,7 +93,7 @@ if st.button("Calculate"):
         - CAPM Return: {capm_return*100:.2f}%
         - Sharpe Ratio: {sharpe_ratio:.2f}
         """)
-
+    
     except Exception as e:
         st.error(f"Error: {str(e)}")
         st.stop()
