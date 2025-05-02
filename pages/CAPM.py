@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 
 st.title("CAPM and Sharpe Ratio Calculator")
 
+st.write("yfinance version:", yf.__version__)
+
 stock_ticker = st.text_input("Enter stock ticker (e.g., AAPL)", "AAPL")
 index_ticker = st.text_input("Enter index ticker (e.g., ^GSPC for S&P 500)", "^GSPC")
 
