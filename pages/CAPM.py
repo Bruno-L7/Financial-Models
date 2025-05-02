@@ -2,11 +2,11 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import yfinance as yf
+import requests                      
+
 from datetime import datetime, timedelta
 
 st.title("CAPM and Sharpe Ratio Calculator")
-
-st.write("yfinance version:", yf.__version__)
 
 stock_ticker = st.text_input("Enter stock ticker (e.g., AAPL)", "AAPL")
 index_ticker = st.text_input("Enter index ticker (e.g., ^GSPC for S&P 500)", "^GSPC")
@@ -16,22 +16,46 @@ if st.button("Calculate"):
         # Use a 5-year period to ensure recent data
         end_date = datetime.today()
         start_date = end_date - timedelta(days=5*365)
-        
-        # Fetch data with progress
+         
+        # ──────── CREATE A SESSION WITH A REAL BROWSER UA ────────
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/115.0.0.0 Safari/537.36"
+            )
+        })
+
+         # Fetch data with progress—pass the custom session and disable threads
         with st.spinner("Downloading stock data..."):
             stock_data = yf.download(stock_ticker, start=start_date, end=end_date)
+            stock_data = yf.download(
+                stock_ticker,
+                start=start_date,
+                end=end_date,
+                session=session,
+                threads=False
+            )
         with st.spinner("Downloading index data..."):
             index_data = yf.download(index_ticker, start=start_date, end=end_date)
-        
-        # Debug: Show downloaded data info
+            index_data = yf.download(
+                index_ticker,
+                start=start_date,
+                end=end_date,
+                session=session,
+                threads=False
+            )
+         
+         # Debug: Show downloaded data info
         st.write(f"Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
-        
+         
         if stock_data.empty:
-            st.error(f"No stock data for {stock_ticker}. Check ticker on Yahoo Finance.")
-            st.stop()
+             st.error(f"No stock data for {stock_ticker}. Check ticker on Yahoo Finance.")
+             st.stop()
         if index_data.empty:
-            st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
-            st.stop()
+             st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
+             st.stop()
 
         # Ensure 'Close' columns exist and are Series (not DataFrames)
         stock_close = stock_data['Close'].squeeze()  # Convert to Series if needed
