@@ -18,3 +18,4 @@ PyPortfolioOpt==1.5.1
 cvxpy
 pot
 gudhi
+requests>=2.0.0
