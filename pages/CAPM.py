@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import yfinance as yf
+from yahoo_fin.stock_info import get_data
 from datetime import datetime, timedelta
 
 st.title("CAPM and Sharpe Ratio Calculator")
@@ -15,11 +15,11 @@ if st.button("Calculate"):
         end_date = datetime.today()
         start_date = end_date - timedelta(days=5*365)
         
-        # Fetch data with progress
+        # Fetch data using yahoo_fin
         with st.spinner("Downloading stock data..."):
-            stock_data = yf.download(stock_ticker, start=start_date, end=end_date)
+            stock_data = get_data(stock_ticker, start_date=start_date, end_date=end_date)
         with st.spinner("Downloading index data..."):
-            index_data = yf.download(index_ticker, start=start_date, end=end_date)
+            index_data = get_data(index_ticker, start_date=start_date, end_date=end_date)
         
         # Debug: Show downloaded data info
         st.write(f"Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
@@ -31,9 +31,9 @@ if st.button("Calculate"):
             st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
             st.stop()
 
-        # Ensure 'Close' columns exist and are Series (not DataFrames)
-        stock_close = stock_data['Close'].squeeze()  # Convert to Series if needed
-        index_close = index_data['Close'].squeeze()
+        # Extract 'close' column (yahoo_fin uses lowercase)
+        stock_close = stock_data['close'].squeeze()  # Note lowercase 'close'
+        index_close = index_data['close'].squeeze()
 
         # Calculate log returns
         stock_returns = np.log(1 + stock_close.pct_change().dropna())
@@ -41,24 +41,24 @@ if st.button("Calculate"):
 
         # Align dates explicitly
         common_dates = stock_returns.index.intersection(index_returns.index)
-        if len(common_dates) < 2:  # Need at least 2 data points for covariance
+        if len(common_dates) < 2:
             st.error("Insufficient overlapping data points between stock and index.")
             st.stop()
 
         stock_returns_aligned = stock_returns.loc[common_dates]
         index_returns_aligned = index_returns.loc[common_dates]
 
-        # Calculate covariance and beta (explicitly convert to float)
+        # Calculate covariance and beta
         covariance = np.cov(stock_returns_aligned, index_returns_aligned)[0, 1]
         market_variance = index_returns_aligned.var()
-        beta = float(covariance / market_variance)  # Force scalar
+        beta = float(covariance / market_variance)
 
         # CAPM components
         rf = 0.0137  # Risk-free rate
-        market_return = float(index_returns_aligned.mean() * 252)  # Force scalar
+        market_return = float(index_returns_aligned.mean() * 252)
         capm_return = float(rf + beta * (market_return - rf))
 
-        # Sharpe Ratio (ensure scalar)
+        # Sharpe Ratio
         stock_volatility = float(stock_returns_aligned.std() * np.sqrt(252))
         sharpe_ratio = float((capm_return - rf) / stock_volatility)
 
