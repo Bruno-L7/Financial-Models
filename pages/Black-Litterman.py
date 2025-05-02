@@ -13,29 +13,39 @@ st.title("Black-Litterman Portfolio Optimization")
 
 import time
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def get_market_cap(ticker):
+    """Fetch market cap with retries and fallback calculations"""
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        # Prioritize direct market cap
+        market_cap = info.get('marketCap', info.get('totalMarketCap', np.nan))
+        
+        # Fallback: Calculate from shares outstanding and price
+        if pd.isna(market_cap) or market_cap <= 0:
+            shares = info.get('sharesOutstanding', info.get('impliedSharesOutstanding', np.nan))
+            price = info.get('regularMarketPrice', info.get('currentPrice', np.nan))
+            if not pd.isna(shares) and not pd.isna(price):
+                market_cap = shares * price
+            else:
+                market_cap = np.nan
+        
+        return market_cap / 1e9  # Convert to billions
+    
+    except Exception as e:
+        return np.nan
+
 def get_all_market_caps(tickers):
-    """Fetch market caps with rate limiting"""
+    """Fetch market caps with rate limiting and error handling"""
     market_caps = {}
     for ticker in tickers:
         market_caps[ticker] = get_market_cap(ticker)
-        time.sleep(0.2)  # 200ms delay between requests
+        time.sleep(0.5)  # Add delay to avoid rate limits
     return market_caps
 
-def get_all_market_caps(tickers):
-    """Fetch market caps for all tickers in one request"""
-    try:
-        stocks = yf.Tickers(tickers)
-        return {
-            ticker: (
-                stocks.tickers[ticker].info.get('marketCap', np.nan) / 1e9
-                if not pd.isna(stocks.tickers[ticker].info.get('marketCap', np.nan))
-                else np.nan
-            )
-            for ticker in tickers
-        }
-    except Exception:
-        return {t: np.nan for t in tickers}
-    
 def preprocess_returns(returns):
     """Preprocess returns data"""
     returns = returns.iloc[1:]
@@ -179,11 +189,17 @@ for i in range(num_views):
         ) / 100
         confidences.append(confidence)
 
+
 if st.button("Optimize Portfolio", type="primary"):
     try:
         with st.spinner('Optimizing portfolio...'):
             # Get market caps and filter valid tickers
-            market_caps = get_all_market_caps(tickers)
+            try:
+                market_caps = get_all_market_caps(tickers)
+            except Exception as e:
+                st.error(f"Failed to fetch market caps: {str(e)}")
+                st.stop()
+
             valid_tickers = [t for t, cap in market_caps.items() if not np.isnan(cap)]
             
             if len(valid_tickers) < 2:
