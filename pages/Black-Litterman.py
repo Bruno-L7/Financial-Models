@@ -7,20 +7,35 @@ import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
 import warnings
+import time
+import random
+from tenacity import retry, stop_after_attempt, wait_exponential, wait_random, retry_if_exception_type
 warnings.filterwarnings('ignore')
 
 st.title("Black-Litterman Portfolio Optimization")
 
-import time
+# Cache market cap data to avoid repeated API calls
+@st.cache_data(ttl=3600*6)  # Cache for 6 hours
+def get_market_caps_cached(tickers_str):
+    """Cache market caps for multiple tickers"""
+    tickers = [t.strip() for t in tickers_str.split(',') if t.strip()]
+    return get_all_market_caps(tickers)
 
-from tenacity import retry, stop_after_attempt, wait_exponential
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+# Improved retry decorator with jitter and longer waits
+@retry(
+    stop=stop_after_attempt(5),  # Increased attempts
+    wait=wait_exponential(multiplier=1, min=4, max=30) + wait_random(0, 2),  # Exponential backoff with jitter
+    retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception))
+)
 def get_market_cap(ticker):
-    """Fetch market cap with retries and fallback calculations"""
+    """Fetch market cap with improved retry logic"""
     try:
+        # Add random delay to prevent rate limiting
+        time.sleep(random.uniform(0.5, 2.0))
+        
         stock = yf.Ticker(ticker)
         info = stock.info
+        
         # Prioritize direct market cap
         market_cap = info.get('marketCap', info.get('totalMarketCap', np.nan))
         
@@ -28,7 +43,7 @@ def get_market_cap(ticker):
         if pd.isna(market_cap) or market_cap <= 0:
             shares = info.get('sharesOutstanding', info.get('impliedSharesOutstanding', np.nan))
             price = info.get('regularMarketPrice', info.get('currentPrice', np.nan))
-            if not pd.isna(shares) and not pd.isna(price):
+            if not pd.isna(shares) and not pd.isna(price) and shares > 0 and price > 0:
                 market_cap = shares * price
             else:
                 market_cap = np.nan
@@ -36,14 +51,30 @@ def get_market_cap(ticker):
         return market_cap / 1e9  # Convert to billions
     
     except Exception as e:
-        return np.nan
+        st.warning(f"Temporary error fetching data for {ticker}, retrying...")
+        raise e
 
 def get_all_market_caps(tickers):
-    """Fetch market caps with rate limiting and error handling"""
+    """Fetch market caps with better rate limiting and error handling"""
     market_caps = {}
-    for ticker in tickers:
-        market_caps[ticker] = get_market_cap(ticker)
-        time.sleep(0.5)  # Add delay to avoid rate limits
+    
+    with st.spinner('Fetching market data (this may take a moment)...'):
+        progress_bar = st.progress(0)
+        for i, ticker in enumerate(tickers):
+            try:
+                market_caps[ticker] = get_market_cap(ticker)
+                progress_bar.progress((i + 1) / len(tickers))
+            except Exception as e:
+                # If we fail after retries, assign NaN but continue with other tickers
+                st.warning(f"Could not fetch market cap for {ticker}: {str(e)}")
+                market_caps[ticker] = np.nan
+                continue
+    
+    # Check if we have enough valid market caps
+    valid_caps = sum(1 for cap in market_caps.values() if not np.isnan(cap))
+    if valid_caps < 2:
+        raise ValueError("Could not fetch enough valid market cap data. Please try again later or use different tickers.")
+    
     return market_caps
 
 def preprocess_returns(returns):
@@ -55,12 +86,16 @@ def preprocess_returns(returns):
         returns[col] = returns[col].clip(lower=lower_quantile[col], upper=upper_quantile[col])
     return returns.clip(lower=-0.25, upper=0.25)
 
-from tenacity import retry, stop_after_attempt, wait_exponential
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10) + wait_random(0, 2),
+    retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception))
+)
 def get_price_data(tickers, start_date, end_date):
-    # ... (existing code)def get_price_data(tickers, start_date, end_date):
-    """Fetch price data"""
+    """Fetch price data with better retry logic"""
+    # Add a random delay
+    time.sleep(random.uniform(0.5, 1.5))
+    
     data = yf.download(tickers, start=start_date, end=end_date, progress=False)
     prices = data['Adj Close'] if 'Adj Close' in data.columns else data['Close']
     
@@ -75,20 +110,6 @@ def get_price_data(tickers, start_date, end_date):
         raise ValueError("No valid price data found")
     
     return prices, list(prices.columns)
-
-@st.cache_data(ttl=3600)
-def get_market_cap(ticker):
-    """Fetch market cap"""
-    stock = yf.Ticker(ticker)
-    info = stock.info
-    market_cap = info.get('marketCap', info.get('totalMarketCap', np.nan))
-    
-    if pd.isna(market_cap) or market_cap <= 0:
-        shares = info.get('sharesOutstanding', info.get('impliedSharesOutstanding', 0))
-        price = info.get('regularMarketPrice', info.get('currentPrice', 0))
-        market_cap = shares * price if shares and price else np.nan
-    
-    return float(market_cap) / 1e9 if not pd.isna(market_cap) else np.nan
 
 def calculate_robust_covariance(returns):
     """Calculate robust covariance matrix"""
@@ -189,15 +210,30 @@ for i in range(num_views):
         ) / 100
         confidences.append(confidence)
 
+# Add fallback option
+st.write("### 4. Fallback Options")
+use_cached_data = st.checkbox("Use cached market data if available", value=True, 
+                             help="This can help avoid rate limit errors by using previously fetched data")
 
-if st.button("Optimize Portfolio", type="primary"):
+run_btn = st.button("Optimize Portfolio", type="primary")
+
+if run_btn:
     try:
         with st.spinner('Optimizing portfolio...'):
-            # Get market caps and filter valid tickers
+            # Try to get market caps and filter valid tickers
             try:
-                market_caps = get_all_market_caps(tickers)
+                # If caching is enabled, try to get cached data first
+                if use_cached_data:
+                    try:
+                        market_caps = get_market_caps_cached(tickers_input)
+                        st.success("Successfully loaded cached market data")
+                    except Exception:
+                        market_caps = get_all_market_caps(tickers)
+                else:
+                    market_caps = get_all_market_caps(tickers)
             except Exception as e:
                 st.error(f"Failed to fetch market caps: {str(e)}")
+                st.error("This is likely due to rate limiting by Yahoo Finance. Try enabling the cache option or waiting before retrying.")
                 st.stop()
 
             valid_tickers = [t for t, cap in market_caps.items() if not np.isnan(cap)]
@@ -207,7 +243,15 @@ if st.button("Optimize Portfolio", type="primary"):
                 st.stop()
             
             # Get price data and process
-            price_data, valid_tickers = get_price_data(valid_tickers, start_date, end_date)
+            st.info(f"Processing data for {len(valid_tickers)} valid tickers: {', '.join(valid_tickers)}")
+            
+            try:
+                price_data, valid_tickers = get_price_data(valid_tickers, start_date, end_date)
+            except Exception as e:
+                st.error(f"Failed to fetch price data: {str(e)}")
+                st.error("This is likely due to rate limiting. Try again later or with fewer tickers.")
+                st.stop()
+                
             daily_returns = price_data.pct_change()
             cleaned_returns = preprocess_returns(daily_returns)
             cov_matrix = calculate_robust_covariance(cleaned_returns)
