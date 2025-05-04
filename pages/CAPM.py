@@ -12,81 +12,74 @@ index_ticker = st.text_input("Enter index ticker (e.g., ^GSPC for S&P 500)", "^G
 
 if st.button("Calculate"):
     try:
-        # Use a 5-year period to ensure recent data
         end_date = datetime.today()
         start_date = end_date - timedelta(days=5*365)
+        
+        # Debug: Show dates being used
+        st.write(f"Debug - Start Date: {start_date.strftime('%Y-%m-%d')}")
+        st.write(f"Debug - End Date: {end_date.strftime('%Y-%m-%d')}")
 
-       # ─── create a session that pretends to be a modern browser ───
         session = requests.Session()
         session.headers.update({
-           "User-Agent": (
-               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-               "AppleWebKit/537.36 (KHTML, like Gecko) "
-               "Chrome/115.0.0.0 Safari/537.36"
-           )
-       })
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
 
-        # Fetch data with progress—disable threading in hosted env
         with st.spinner("Downloading stock data..."):
-           stock_data = yf.download(
-               stock_ticker,
-               start=start_date,
-               end=end_date,
-               session=session,
-               threads=False
-           )
+            stock_data = yf.download(
+                stock_ticker,
+                start=start_date,
+                end=end_date,
+                session=session,
+                progress=False  # Disable yfinance's internal progress output
+            )
+            # Debug: Show raw stock data
+            st.write("Debug - Stock Data Head:", stock_data.head(3))
+            st.write("Debug - Stock Data Tail:", stock_data.tail(3))
+
         with st.spinner("Downloading index data..."):
-           index_data = yf.download(
-               index_ticker,
-               start=start_date,
-               end=end_date,
-               session=session,
-               threads=False
-           )
+            index_data = yf.download(
+                index_ticker,
+                start=start_date,
+                end=end_date,
+                session=session,
+                progress=False
+            )
+            # Debug: Show raw index data
+            st.write("Debug - Index Data Head:", index_data.head(3))
+            st.write("Debug - Index Data Tail:", index_data.tail(3))
 
-        # Debug: Show downloaded data info
-        st.write(f"Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
-
-         
+        # Debug: Check data existence
+        st.write(f"Debug - Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
+        
         if stock_data.empty:
-             st.error(f"No stock data for {stock_ticker}. Check ticker on Yahoo Finance.")
-             st.stop()
+            st.error(f"No stock data for {stock_ticker}. Check ticker on Yahoo Finance.")
+            st.stop()
         if index_data.empty:
-             st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
-             st.stop()
+            st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
+            st.stop()
 
-        # Ensure 'Close' columns exist and are Series (not DataFrames)
-        stock_close = stock_data['Close'].squeeze()  # Convert to Series if needed
+        stock_close = stock_data['Close'].squeeze()
         index_close = index_data['Close'].squeeze()
 
-        # Calculate log returns
         stock_returns = np.log(1 + stock_close.pct_change().dropna())
         index_returns = np.log(1 + index_close.pct_change().dropna())
 
-        # Align dates explicitly
         common_dates = stock_returns.index.intersection(index_returns.index)
-        if len(common_dates) < 2:  # Need at least 2 data points for covariance
+        if len(common_dates) < 2:  
             st.error("Insufficient overlapping data points between stock and index.")
             st.stop()
 
         stock_returns_aligned = stock_returns.loc[common_dates]
         index_returns_aligned = index_returns.loc[common_dates]
-
-        # Calculate covariance and beta (explicitly convert to float)
         covariance = np.cov(stock_returns_aligned, index_returns_aligned)[0, 1]
         market_variance = index_returns_aligned.var()
-        beta = float(covariance / market_variance)  # Force scalar
-
-        # CAPM components
-        rf = 0.0137  # Risk-free rate
-        market_return = float(index_returns_aligned.mean() * 252)  # Force scalar
+        beta = float(covariance / market_variance) 
+        rf = 0.0137
+        market_return = float(index_returns_aligned.mean() * 252)
         capm_return = float(rf + beta * (market_return - rf))
-
-        # Sharpe Ratio (ensure scalar)
         stock_volatility = float(stock_returns_aligned.std() * np.sqrt(252))
         sharpe_ratio = float((capm_return - rf) / stock_volatility)
 
-        # Display results
         st.success(f"""
         **Results for {stock_ticker}:**
         - Beta: {beta:.2f}
