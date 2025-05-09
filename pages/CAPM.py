@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import requests
 from datetime import datetime, timedelta
 
 st.title("CAPM and Sharpe Ratio Calculator")
@@ -12,25 +11,26 @@ index_ticker = st.text_input("Enter index ticker (e.g., ^GSPC for S&P 500)", "^G
 
 if st.button("Calculate"):
     try:
+        # Simplified date calculation
         end_date = datetime.today()
         start_date = end_date - timedelta(days=5*365)
         
-        # Debug: Show dates being used
         st.write(f"Debug - Start Date: {start_date.strftime('%Y-%m-%d')}")
         st.write(f"Debug - End Date: {end_date.strftime('%Y-%m-%d')}")
 
-        session = requests.Session()
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        })
+        # Removed custom session with User-Agent as it might cause issues
+        # session = requests.Session()
+        # session.headers.update({
+        #     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        # })
 
+        # Use the built-in download function without custom session
         with st.spinner("Downloading stock data..."):
             stock_data = yf.download(
                 stock_ticker,
                 start=start_date,
                 end=end_date,
-                session=session,
-                progress=False  # Disable yfinance's internal progress output
+                progress=False
             )
             # Debug: Show raw stock data
             st.write("Debug - Stock Data Head:", stock_data.head(3))
@@ -41,14 +41,11 @@ if st.button("Calculate"):
                 index_ticker,
                 start=start_date,
                 end=end_date,
-                session=session,
                 progress=False
             )
-            # Debug: Show raw index data
             st.write("Debug - Index Data Head:", index_data.head(3))
             st.write("Debug - Index Data Tail:", index_data.tail(3))
 
-        # Debug: Check data existence
         st.write(f"Debug - Stock data rows: {len(stock_data)}, Index data rows: {len(index_data)}")
         
         if stock_data.empty:
@@ -58,6 +55,7 @@ if st.button("Calculate"):
             st.error(f"No index data for {index_ticker}. Check ticker on Yahoo Finance.")
             st.stop()
 
+        # Rest of your code remains the same...
         stock_close = stock_data['Close'].squeeze()
         index_close = index_data['Close'].squeeze()
 
